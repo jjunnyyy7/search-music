@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Melodi Cinta 🎼 — Pembuat Lagu Otomatis</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    min-height: 100vh;
+    font-family: 'Segoe UI', 'Poppins', sans-serif;
+    background: radial-gradient(ellipse at 50% 25%, #5b1a6e 0%, #3a0f52 45%, #240838 100%);
+    color: #fff; overflow-x: hidden; position: relative;
+  }
+
+  /* ===== BOKEH ===== */
+  .bokeh { position: fixed; border-radius: 50%; filter: blur(60px); opacity: .35; pointer-events: none; z-index: 0; }
+  .b1 { width: 300px; height: 300px; background: #ff2ee6; top: 8%; left: 5%; animation: drift 12s ease-in-out infinite; }
+  .b2 { width: 250px; height: 250px; background: #a259ff; bottom: 12%; right: 8%; animation: drift 15s ease-in-out infinite reverse; }
+  .b3 { width: 180px; height: 180px; background: #ff6ec7; top: 55%; left: 45%; animation: drift 18s ease-in-out infinite; }
+  @keyframes drift { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(40px,-30px) scale(1.15); } }
+
+  /* ===== NOTA MELAYANG ===== */
+  .note { position: fixed; z-index: 1; pointer-events: none; color: rgba(255,255,255,.55); user-select: none;
+    animation: floatNote linear infinite; text-shadow: 0 0 10px #ff2ee6; }
+  @keyframes floatNote {
+    0% { transform: translateY(110vh) rotate(0); opacity: 0; }
+    10%,90% { opacity: 1; } 100% { transform: translateY(-15vh) rotate(340deg); opacity: 0; }
+  }
+
+  /* ===== HATI ===== */
+  .heart-wrap { display: flex; justify-content: center; align-items: center; height: 190px; margin-top: 25px; position: relative; z-index: 2; }
+  .heart { width: 110px; height: 110px; background: linear-gradient(135deg, #ffb3f5, #ff2ee6);
+    position: relative; transform: rotate(45deg); cursor: pointer;
+    box-shadow: 0 0 60px #ff2ee6, 0 0 120px #ff2ee6aa, inset -10px -10px 30px #c026d3;
+    animation: beat 1.2s ease-in-out infinite; }
+  .heart::before, .heart::after { content: ''; position: absolute; width: 110px; height: 110px;
+    border-radius: 50%; background: linear-gradient(135deg, #ffb3f5, #ff2ee6); box-shadow: inherit; }
+  .heart::before { top: -55px; left: 0; } .heart::after { top: 0; left: -55px; }
+  @keyframes beat { 0%,100% { transform: rotate(45deg) scale(1); } 25% { transform: rotate(45deg) scale(1.12); }
+    40% { transform: rotate(45deg) scale(.96); } 55% { transform: rotate(45deg) scale(1.08); } }
+
+  /* ===== GELombANG ===== */
+  #waveCanvas { display: block; width: 100%; height: 110px; position: relative; z-index: 2; }
+
+  header { text-align: center; position: relative; z-index: 2; margin-top: -55px; }
+  h1 { font-size: clamp(2rem, 6vw, 3.2rem); background: linear-gradient(90deg, #ffd6fa, #ff2ee6, #a259ff);
+    -webkit-background-clip: text; background-clip: text; color: transparent; letter-spacing: 2px; }
+  .subtitle { color: #ffb3f5; opacity: .85; margin-top: 6px; }
+
+  /* ===== KOMPOSER ===== */
+  .ai-box { position: relative; z-index: 2; max-width: 720px; margin: 35px auto; padding: 28px;
+    background: rgba(255,255,255,.06); border: 1px solid rgba(255,46,230,.35); border-radius: 24px;
+    backdrop-filter: blur(12px); box-shadow: 0 0 40px rgba(255,46,230,.15); }
+  .ai-header { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+  .ai-dot { width: 12px; height: 12px; border-radius: 50%; background: #2eff9a; box-shadow: 0 0 10px #2eff9a; animation: blink 2s infinite; }
+  @keyframes blink { 50% { opacity: .2; } }
+  .ai-title { font-weight: 600; color: #ffd6fa; }
+  .ai-title small { color: #a259ff; font-weight: 400; }
+
+  .row-label { font-size: .8rem; letter-spacing: 2px; text-transform: uppercase; color: #a259ff; margin: 14px 0 8px; }
+  .moods, .genres { display: flex; flex-wrap: wrap; gap: 10px; }
+  .mood-btn, .genre-btn { padding: 8px 18px; border-radius: 999px; cursor: pointer;
+    border: 1px solid rgba(255,46,230,.5); background: transparent; color: #ffb3f5; font-size: .92rem; transition: all .25s; }
+  .mood-btn:hover, .genre-btn:hover { background: rgba(255,46,230,.15); transform: translateY(-2px); }
+  .mood-btn.active { background: linear-gradient(90deg, #ff2ee6, #a259ff); color: #fff; box-shadow: 0 0 18px rgba(255,46,230,.6); }
+  .genre-btn.active { background: linear-gradient(90deg, #a259ff, #6a3cff); color: #fff; box-shadow: 0 0 18px rgba(162,89,255,.6); }
+
+  input[type="text"] { width: 100%; padding: 14px 18px; border-radius: 14px; margin-top: 6px;
+    border: 1px solid rgba(162,89,255,.5); background: rgba(36,8,56,.6); color: #fff; font-size: 1rem; outline: none; }
+  input[type="text"]:focus { border-color: #ff2ee6; box-shadow: 0 0 15px rgba(255,46,230,.35); }
+
+  .generate-btn { width: 100%; margin-top: 18px; padding: 15px; border: none; border-radius: 14px;
+    background: linear-gradient(90deg, #ff2ee6, #a259ff, #ff2ee6); background-size: 200% auto;
+    color: #fff; font-size: 1.08rem; font-weight: 600; cursor: pointer; letter-spacing: 1px;
+    transition: background-position .5s, transform .2s; }
+  .generate-btn:hover { background-position: right center; transform: translateY(-2px); }
+  .generate-btn:disabled { opacity: .6; cursor: wait; }
+
+  .ai-status { text-align: center; color: #a259ff; font-size: .88rem; margin-top: 12px; min-height: 1.3em; }
+
+  /* ===== LEMBAR LAGU ===== */
+  .song-sheet { position: relative; z-index: 2; max-width: 720px; margin: 0 auto 60px; padding: 30px;
+    background: rgba(255,255,255,.05); border: 1px solid rgba(255,46,230,.4); border-radius: 24px;
+    box-shadow: 0 0 50px rgba(255,46,230,.18); display: none; }
+  .song-sheet.show { display: block; }
+  .song-head h2 { text-align: center; font-size: 1.7rem; color: #ffd6fa; text-shadow: 0 0 25px rgba(255,46,230,.5); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 16px 0; }
+  .chip { font-size: .78rem; padding: 5px 14px; border-radius: 999px;
+    background: rgba(162,89,255,.18); border: 1px solid rgba(162,89,255,.5); color: #e6c8ff; }
+
+  .sec { opacity: 0; transform: translateY(14px); transition: all .6s ease; margin-bottom: 18px;
+    padding: 14px 18px; border-radius: 14px; background: rgba(36,8,56,.45); border-left: 3px solid #ff2ee6; }
+  .sec.show { opacity: 1; transform: translateY(0); }
+  .sec-label { font-size: .74rem; letter-spacing: 3px; color: #ff2ee6; text-transform: uppercase; margin-bottom: 6px; }
+  .chord-line { font-family: 'Courier New', monospace; font-size: .82rem; color: #7ee0ff; margin-bottom: 8px; }
+  .line { line-height: 1.75; color: #ffe6fb; font-size: .98rem; }
+  .line b { color: #ffd6fa; }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 22px; }
+  .ctl-btn { padding: 10px 22px; border-radius: 999px; cursor: pointer; font-size: .9rem;
+    border: 1px solid rgba(255,46,230,.6); background: rgba(255,46,230,.08); color: #ffb3f5; transition: all .25s; }
+  .ctl-btn:hover { background: rgba(255,46,230,.25); transform: translateY(-2px); }
+  .ctl-btn.primary { background: linear-gradient(90deg, #ff2ee6, #a259ff); color: #fff; border: none; }
+  .ctl-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+  .ai-footer { text-align: center; font-size: .8rem; color: #a259ff; margin-top: 20px; }
+
+  /* ===== EQUALIZER ===== */
+  .eq { display: none; gap: 4px; align-items: flex-end; height: 26px; }
+  .eq.on { display: flex; }
+  .eq span { width: 5px; background: #ff2ee6; border-radius: 3px; animation: eqb .7s ease-in-out infinite; }
+  .eq span:nth-child(2) { animation-delay: .1s; } .eq span:nth-child(3) { animation-delay: .2s; }
+  .eq span:nth-child(4) { animation-delay: .3s; } .eq span:nth-child(5) { animation-delay: .15s; }
+  @keyframes eqb { 0%,100% { height: 6px; } 50% { height: 24px; } }
+
+  /* ===== GALERI ===== */
+  .gallery { max-width: 960px; margin: 40px auto 80px; padding: 0 20px; position: relative; z-index: 2; }
+  .gallery h2 { text-align: center; color: #ffd6fa; margin-bottom: 28px; letter-spacing: 1px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
+  .card { padding: 22px; border-radius: 18px; background: rgba(255,255,255,.05);
+    border: 1px solid rgba(162,89,255,.3); transition: all .3s; }
+  .card:hover { transform: translateY(-6px); border-color: #ff2ee6; box-shadow: 0 10px 35px rgba(255,46,230,.25); }
+  .card .genre { font-size: .76rem; letter-spacing: 2px; color: #ff2ee6; text-transform: uppercase; margin-bottom: 10px; }
+  .card p { font-style: italic; line-height: 1.65; color: #ffe6fb; font-size: .94rem; }
+  .card .song { margin-top: 12px; font-size: .8rem; color: #a259ff; }
+
+  footer { text-align: center; padding: 25px 0 40px; color: rgba(255,179,245,.5); font-size: .85rem; position: relative; z-index: 2; }
+</style>
+</head>
+<body>
+
+<div class="bokeh b1"></div><div class="bokeh b2"></div><div class="bokeh b3"></div>
+
+<div class="heart-wrap"><div class="heart" title="Klik aku! 💘"></div></div>
+<canvas id="waveCanvas"></canvas>
+
+<header>
+  <h1>♪ AI MELODI CINTA ♫</h1>
+  <p class="subtitle">Tulis satu kata &mdash; AI mengubahnya jadi <b>lagu utuh</b> 🎼</p>
+</header>
+
+<!-- ===== KOMPOSER LAGU ===== -->
+<section class="ai-box">
+  <div class="ai-header">
+    <div class="ai-dot"></div>
+    <div class="ai-title">AI Komposer <small>&bull; Song Writer v2.0</small></div>
+  </div>
+
+  <div class="row-label">💜 Mood Lagu</div>
+  <div class="moods">
+    <button class="mood-btn active" data-mood="romantis">💜 Romantis</button>
+    <button class="mood-btn" data-mood="rindu">🌙 Rindu</button>
+    <button class="mood-btn" data-mood="bahagia">✨ Bahagia</button>
+    <button class="mood-btn" data-mood="sedih">💔 Pahit</button>
+  </div>
+
+  <div class="row-label">🎸 Genre</div>
+  <div class="genres">
+    <button class="genre-btn active" data-genre="pop">🎧 Pop Ballad</button>
+    <button class="genre-btn" data-genre="akustik">🪕 Akustik</button>
+    <button class="genre-btn" data-genre="indie">🌤 Indie</button>
+    <button class="genre-btn" data-genre="rock">🤘 Rock</button>
+    <button class="genre-btn" data-genre="dangdut">🕺 Dangdut</button>
+  </div>
+
+  <div class="row-label">✍️ Kata / Nama</div>
+  <input type="text" id="userInput" placeholder="misal: 'Reff', 'Senja', 'Kamila'..." maxlength="30">
+
+  <button class="generate-btn" id="generateBtn">🎤 Buat Lagu Otomatis</button>
+  <div class="ai-status" id="aiStatus"></div>
+</section>
+
+<!-- ===== LEMBAR LAGU (HASIL AI) ===== -->
+<section class="song-sheet" id="songSheet">
+  <div class="song-head"><h2 id="songTitle"></h2></div>
+  <div class="chips" id="songChips"></div>
+  <div id="songBody"></div>
+  <div class="controls">
+    <button class="ctl-btn primary" id="playBtn">▶️ Putar Melodi</button>
+    <button class="ctl-btn" id="singBtn">🔊 Nyanyikan</button>
+    <div class="eq" id="eq"><span></span><span></span><span></span><span></span><span></span></div>
+  </div>
+  <div class="controls">
+    <button class="ctl-btn" onclick="copySong()">📋 Salin</button>
+    <button class="ctl-btn" onclick="shareSong()">💬 Bagikan</button>
+    <button class="ctl-btn" id="regenBtn">🔄 Buat Lagu Lagi</button>
+  </div>
+  <div class="ai-footer" id="songFooter"></div>
+</section>
+
+<!-- ===== GALERI ===== -->
+<section class="gallery">
+  <h2>💌 Contoh Karya Playlist</h2>
+  <div class="cards" id="cardGallery"></div>
+</section>
+
+<footer>✦ Dibuat dengan cinta, nada, dan sedikit kode ✦</footer>
+
+<script>
+/* ================= EFEK LATAR ================= */
+const noteSymbols = ['🎵','🎶','♪','♫','♬','💞','✨'];
+for (let i = 0; i < 16; i++) {
+  const n = document.createElement('div');
+  n.className = 'note';
+  n.textContent = noteSymbols[Math.floor(Math.random()*noteSymbols.length)];
+  n.style.left = Math.random()*100 + 'vw';
+  n.style.fontSize = (14 + Math.random()*24) + 'px';
+  n.style.animationDuration = (9 + Math.random()*10) + 's';
+  n.style.animationDelay = (Math.random()*10) + 's';
+  document.body.appendChild(n);
+}
+
+const canvas = document.getElementById('waveCanvas'), ctx = canvas.getContext('2d');
+let t = 0;
+function resize(){ canvas.width = innerWidth; canvas.height = 110; }
+resize(); addEventListener('resize', resize);
+(function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ['rgba(255,46,230,.7)','rgba(162,89,255,.5)','rgba(255,214,250,.4)'].forEach((c,idx)=>{
+    ctx.beginPath(); ctx.strokeStyle = c; ctx.lineWidth = 2;
+    for (let x = 0; x <= canvas.width; x += 3){
+      const y = 55 + Math.sin(x*.015 + t + idx)*20 + Math.sin(x*.03 - t*1.4 + idx*2)*9;
+      x === 0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+  });
+  t += .03; requestAnimationFrame(draw);
+})();
+
+/* ================= BANK DATA LAGU ================= */
+const MOODS = {
+  romantis: {
+    label:'💜 Romantis', key:'C Mayor', scale:'major',
+    v1:['Senja turun pelan seperti intro yang lembut','Gitar itu berbunyi, menyebut namamu perlahan','Setiap detak jantung ikut menghafal iramamu','Langit malam bernada mayor, karena kamu di sana'],
+    v2:['Kau hadir bagai hook yang tak pernah bisa ku-skip','Balada sederhana, tapi menghantui setiap malam','Kita menulis lirik di sela ritme napas','Dan dunia jadi panggung hanya untuk dua orang'],
+    ch:['Kau adalah lagu yang tak pernah ku-lewati','Dan {W}, {W} di setiap reff yang kunyanyikan','Seribu penyihir tak bisa menandingi melodi ini','Karena cinta kita selalu in-tune, tak pernah sumbang'],
+    br:['Andai waktu adalah kaset, kurewind ke peluk pertama','Dan endi ng lagu ini, akulah yang memilih terus memutar'],
+    out:['{W}...intro yang tak ingin berakhir jadi outro.']
+  },
+  rindu: {
+    label:'🌙 Rindu', key:'C Mayor', scale:'minor',
+    v1:['Playlist ini memutar ulang malam-malam itu','Senar gitar gres, nadanya masih merindukanmu','Jarak cuma jeda panjang di tengah lagu','Aku menunggu bait berikutnya, bersamamu'],
+    v2:['Radio tua masih menyimpan suaramu','Setiap lagu berbau kamu, tak bisa di-skip','Aku bernyanyi sendiri di reff yang dulu kita isi','Dinding kamarku hafal semua kenangan ini'],
+    ch:['Rindu ini berputar seperti kaset usang','Dan {W}, {W}, kau hook yang hilang dari laguku','Kapan kau kembali mengisi nada yang kosong?','Verse-ku sepi tanpa vokal kedua'],
+    br:['Andai rindu punya tempo, pasti lambat sekali','Kutulis lagu ini, berharap angin jadi kurirnya'],
+    out:['{W}...ku masih memutar lagu kita. Loop. Tanpa akhir.']
+  },
+  bahagia: {
+    label:'✨ Bahagia', key:'C Mayor', scale:'major',
+    v1:['Pagi ini seperti intro konser kemenangan','Kopi, senyummu, dan gitar yang terdengar ceria','Langkahku ikut ritme drumband di dada','Dunia bernyanyi bersamaku hari ini'],
+    v2:['Kau datang membawa chorus yang menular','Semua orang ikut bersorak saat kau tertawa','Cinta kita seperti festival musik panas','Dan aku penari terbaik di panggungmu'],
+    ch:['Teriak keras! Cinta ini panggung terbuka!','Dan {W}, {W}, kau drop yang membuat dunia menari!','Kita lompat setinggi reff yang paling berisik','Selamanya berbunyi seperti kembang api'],
+    br:['Kalau bahagia punya genre, ini namamu','Plak! seluruh stadion menyebut nama kita'],
+    out:['{W}! Encore! Lagu ini tak mau selesai!']
+  },
+  sedih: {
+    label:'💔 Pahit', key:'A Minor', scale:'minor',
+    v1:['Lagu ini berhenti di tengah jalan','Chord minor menyapa lebih dulu pagi ini','Ku masih memutar kenangan, loop tanpa akhir','Gitar ini senarnya patah sejak kau pergi'],
+    v2:['Radio kehilangan frekuensinya','Setiap melodi terdengar sumbang tanpamu','Kita pernah jadi reff, kini hanya outro','Dan diam lebih nyaring dari teriakan'],
+    ch:['{W}...{W}, kau lagu yang tak selesai dinyanyikan','Ku singgung senar ini, hanya rasa pahit yang bunyi','Verse terakhir selalu berakhir di namamu','Kau chord yang tak bisa kembali dimainkan'],
+    br:['Andai perpisahan punya outro, aku menulisnya lama','Ku biarkan lagu ini usang, tapi tak ku hapus'],
+    out:['{W}...nada terakhir yang tak pernah kutekan.']
+  }
+};
+
+const GENRES = {
+  pop:     { label:'🎧 Pop Ballad', tempo:82,  wave:'triangle', prog:['C','G','Am','F'] },
+  akustik: { label:'🪕 Akustik',    tempo:72,  wave:'sine',     prog:['C','Am','F','G'] },
+  indie:   { label:'🌤 Indie',      tempo:96,  wave:'triangle', prog:['F','G','C','Am'] },
+  rock:    { label:'🤘 Rock',       tempo:122, wave:'sawtooth', prog:['C','F','G','C'] },
+  dangdut: { label:'🕺 Dangdut',    tempo:104, wave:'square',   prog:['Am','Dm','G','C'] }
+};
+
+/* ================= GENERATOR LAGU ================= */
+let currentMood = 'romantis', currentGenre = 'pop';
+const pick = a => a[Math.floor(Math.random()*a.length)];
+
+function composeSong(word, mood, genre){
+  const M = MOODS[mood], G = GENRES[genre];
+  const W = word || 'dirimu';
+  const fill = lines => lines.map(l => l.replaceAll('{W}', W));
+  const titles = ['Melodi untuk {W}','{W} di Setiap Reff','Lagu Terakhir untuk {W}','Intro Cinta: {W}','Serenata {W}','Bait Pertama Tentang {W}'];
+  const title = pick(titles).replaceAll('{W}', W);
+
+  const prog = G.prog;
+  const chordStr = arr => arr.map(c => '| ' + c + ' ').join('');
+
+  return {
+    title,
+    meta: [G.label, '⏱ ' + G.tempo + ' BPM', '🎹 ' + M.key, M.label],
+    sections: [
+      { label:'Intro',      chords: chordStr(prog), lines:[] },
+      { label:'Verse 1',    chords: chordStr(prog), lines: fill(M.v1) },
+      { label:'Reff 🔥',    chords: chordStr(prog), lines: fill(M.ch) },
+      { label:'Verse 2',    chords: chordStr(prog), lines: fill(M.v2) },
+      { label:'Reff 🔥',    chords: chordStr(prog), lines: fill(M.ch) },
+      { label:'Bridge',     chords: chordStr(prog), lines: fill(M.br) },
+      { label:'Outro',      chords: chordStr(prog), lines: fill(M.out) }
+    ]
+  };
+}
+
+/* ================= RENDER LEMBAR LAGU ================= */
+const sheet = document.getElementById('songSheet'),
+      body  = document.getElementById('songBody'),
+      statusEl = document.getElementById('aiStatus'),
+      genBtn = document.getElementById('generateBtn'),
+      regenBtn = document.getElementById('regenBtn');
+let lastSongText = '', timeouts = [];
+
+function renderSong(song){
+  document.getElementById('songTitle').textContent = '🎼 ' + song.title;
+  document.getElementById('songChips').innerHTML =
+    song.meta.map(m => '<span class="chip">' + m + '</span>').join('');
+  body.innerHTML = song.sections.map(s =>
+    '<div class="sec"><div class="sec-label">[ ' + s.label + ' ]</div>' +
+    (s.chords ? '<div class="chord-line">' + s.chords + '</div>' : '') +
+    s.lines.map(l => '<p class="line">' + l + '</p>').join('') + '</div>'
+  ).join('');
+  sheet.classList.add('show');
+  timeouts.forEach(clearTimeout); timeouts = [];
+  document.querySelectorAll('.sec').forEach((el,i)=>{
+    timeouts.push(setTimeout(()=> el.classList.add('show'), 150 + i*350));
+  });
+}
+
+function doGenerate(){
+  const word = document.getElementById('userInput').value.trim();
+  genBtn.disabled = true; regenBtn.disabled = true;
+  stopAll();
+  const steps = ['🤖 AI membaca kata "' + (word || 'cinta') + '"...','🎹 AI memilih chord & tempo...','✍️ AI menulis lirik dari hati...','🎼 AI merangkai melodi...'];
+  let i = 0;
+  statusEl.textContent = steps[0];
+  const iv = setInterval(()=>{
+    if (++i < steps.length) statusEl.textContent = steps[i];
+    else {
+      clearInterval(iv);
+      const song = composeSong(word, currentMood, currentGenre);
+      lastSongText = '🎼 ' + song.title + '\n' + song.meta.join(' | ') + '\n\n' +
+        song.sections.map(s => '[ ' + s.label + ' ]\n' + s.chords + '\n' + s.lines.join('\n')).join('\n\n') +
+        '\n\n✦ Diciptakan oleh AI Melodi Cinta ✦';
+      renderSong(song);
+      document.getElementById('songFooter').textContent =
+        '✦ Diciptakan oleh AI Komposer — durasi syuting: ' + (1.5 + Math.random()*2).toFixed(1) + ' detik ✦';
+      statusEl.textContent = '✅ Lagu selesai! Putar melodinya atau minta AI menyanyikan~ 🎶';
+      sheet.scrollIntoView({ behavior:'smooth', block:'start' });
+      genBtn.disabled = false; regenBtn.disabled = false;
+    }
+  }, 650);
+}
+genBtn.addEventListener('click', doGenerate);
+regenBtn.addEventListener('click', doGenerate);
+
+document.querySelectorAll('.mood-btn').forEach(b => b.addEventListener('click', ()=>{
+  document.querySelectorAll('.mood-btn').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); currentMood = b.dataset.mood;
+}));
+document.querySelectorAll('.genre-btn').forEach(b => b.addEventListener('click', ()=>{
+  document.querySelectorAll('.genre-btn').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); currentGenre = b.dataset.genre;
+}));
+
+/* ================= PUTAR MELODI (WEB AUDIO) ================= */
+const SCALES = {
+  major: [60,62,64,67,69,72,74,76],  // C mayor pentatonic
+  minor: [57,60,62,64,67,69,72]      // A minor pentatonic
+};
+let audioCtx = null, playTimer = null;
+
+function generateMelody(scale, tempo){
+  const s = SCALES[scale], notes = [];
+  let idx = 2 + Math.floor(Math.random()*3);
+  const beats = [0.5, 0.5, 1, 1, 0.5, 1.5, 1];
+  for (let i = 0; i < 20; i++){
+    idx += pick([-2,-1,-1,0,1,1,2]);
+    idx = Math.max(0, Math.min(s.length-1, idx));
+    notes.push({ freq: 440 * Math.pow(2, (s[idx]-69)/12), beat: pick(beats) });
+  }
+  notes.push({ freq: 440*Math.pow(2,(s[0]-69)/12), beat: 2 }); // resolusi
+  return notes;
+}
+
+function playMelody(){
+  stopAll();
+  const M = MOODS[currentMood], G = GENRES[currentGenre];
+  const notes = generateMelody(M.scale, G.tempo);
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const beatSec = 60 / G.tempo;
+  let time = audioCtx.currentTime + .1;
+
+  notes.forEach(n => {
+    const dur = n.beat * beatSec;
+    // Melodi
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = G.wave; o.frequency.value = n.freq;
+    g.gain.setValueAtTime(0, time);
+    g.gain.linearRampToValueAtTime(.18, time + .02);
+    g.gain.exponentialRampToValueAtTime(.001, time + dur*.95);
+    o.connect(g).connect(audioCtx.destination);
+    o.start(time); o.stop(time + dur);
+    // Bass tiap 1 ketukan panjang
+    if (n.beat >= 1){
+      const b = audioCtx.createOscillator(), bg = audioCtx.createGain();
+      b.type = 'sine'; b.frequency.value = n.freq / 4;
+      bg.gain.setValueAtTime(.12, time);
+      bg.gain.exponentialRampToValueAtTime(.001, time + beatSec*2);
+      b.connect(bg).connect(audioCtx.destination);
+      b.start(time); b.stop(time + beatSec*2);
+    }
+    time += dur;
+  });
+
+  playTimer = setTimeout(stopAll, (time - audioCtx.currentTime) * 1000);
+  document.getElementById('eq').classList.add('on');
+  document.getElementById('playBtn').textContent = '⏹ Hentikan';
+  statusEl.textContent = '🎵 Melodi ' + G.label + ' sedang berbunyi...';
+}
+
+function stopAll(){
+  if (playTimer){ clearTimeout(playTimer); playTimer = null; }
+  if (audioCtx){ try{ audioCtx.close(); }catch(e){} audioCtx = null; }
+  speechSynthesis.cancel();
+  document.getElementById('eq').classList.remove('on');
+  const pb = document.getElementById('playBtn');
+  if (pb) pb.textContent = '▶️ Putar Melodi';
+}
+document.getElementById('playBtn').addEventListener('click', () => {
+  audioCtx ? stopAll() : playMelody();
+});
+
+/* ================= NYANYIKAN (SPEECH) ================= */
+document.getElementById('singBtn').addEventListener('click', () => {
+  if (!lastSongText){ statusEl.textContent = 'Buat lagu dulu ya~ 🎤'; return; }
+  stopAll();
+  const lines = lastSongText.split('\n').filter(l => l && !l.startsWith('|') && !l.startsWith('🎼') && !l.startsWith('✦') && !l.includes('BPM'));
+  let i = 0;
+  const speakNext = () => {
+    if (i >= lines.length){ statusEl.textContent = '🎤 Selesai dinyanyikan! Adegan! 👏'; document.getElementById('eq').classList.remove('on'); return; }
+    const line = lines[i++];
+    const u = new SpeechSynthesisUtterance(line.replace(/[🔥♫♪]/g,''));
+    u.lang = 'id-ID';
+    const isChorus = line.includes('Reff');
+    u.pitch = isChorus ? 1.5 : 1.1;
+    u.rate  = isChorus ? 0.85 : 0.95;
+    u.onend = speakNext;
+    speechSynthesis.speak(u);
+  };
+  document.getElementById('eq').classList.add('on');
+  statusEl.textContent = '🎤 AI sedang menyanyikan lagumu...';
+  speakNext();
+});
+
+/* ================= SALIN & BAGIKAN ================= */
+function copySong(){
+  navigator.clipboard.writeText(lastSongText).then(()=> statusEl.textContent = '📋 Lagu tersalin!');
+}
+function shareSong(){
+  if (navigator.share) navigator.share({ title:'Lagu Buatan AI 💜', text:lastSongText });
+  else copySong();
+}
+
+/* ================= HATI KLIK ================= */
+const heartMsgs = ['💘 Kau lagu favorit yang tak pernah ku-skip.','🎧 Cintaku: unlimited streaming tanpa iklan.','🎹 Detak jantungmu = BPM cintaku.','🎸 Kamu senarnya, aku gitarunya.','🎤 Kalau cinta ini lagu, refrenya namamu.'];
+document.querySelector('.heart').addEventListener('click', ()=> statusEl.textContent = pick(heartMsgs));
+
+/* ================= GALERI ================= */
+const galleryData = [
+  { genre:'Pop Ballad', text:'"Cintaku bukan lagu sekali dengar, tapi album yang ingin kudengar seumur hidup."', song:'♫ Perfect — Ed Sheeran' },
+  { genre:'Akustik', text:'"Cukup kau dan aku, satu gitar, dan malam jadi bait terindah."', song:'♫ April — Mocca' },
+  { genre:'Indie', text:'"Kita mungkin tak sempurna, tapi seperti lagu indie: jujur dan terasa di rumah."', song:'♫ Rumah Ke Rumah — Hindia' },
+  { genre:'Jazz', text:'"Cintamu seperti jazz — tak teratur, tapi selalu membuatku jatuh cinta."', song:'♫ L-O-V-E — Nat King Cole' },
+  { genre:'Rock', text:'"Cintaku bagai rock and roll — keras, nyata, tak takut disorot."', song:'♫ Still Loving You — Scorpions' },
+  { genre:'Dangdut', text:'"Kalau rindu ada irama, seluruh alam ikut bergoyang karena kamu."', song:'♫ Terlalu Manis — Slank' }
+];
+document.getElementById('cardGallery').innerHTML = galleryData.map(c =>
+  '<div class="card"><div class="genre">♪ ' + c.genre + '</div><p>' + c.text + '</p><div class="song">' + c.song + '</div></div>'
+).join('');
+</script>
+</body>
+</html>
